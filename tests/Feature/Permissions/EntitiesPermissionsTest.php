@@ -2,87 +2,124 @@
 
 declare(strict_types=1);
 
-use BezhanSalleh\FilamentShield\FilamentShield;
+use BezhanSalleh\FilamentShield\Facades\FilamentShield;
+use BezhanSalleh\FilamentShield\FilamentShield as FilamentShieldManager;
+use BezhanSalleh\FilamentShield\Tests\Fixtures\CataloguePanelProvider;
+use BezhanSalleh\FilamentShield\Tests\Fixtures\Pages\Reports;
+use BezhanSalleh\FilamentShield\Tests\Fixtures\Widgets\RevenueChart;
+use Filament\Facades\Filament;
+use Filament\PanelRegistry;
 
-function shieldWithEntities(): FilamentShield
-{
-    return new class extends FilamentShield
-    {
-        public function getAllResourcePermissionsWithLabels(): array
-        {
-            return [
-                'View:Article' => 'View',
-                'Update:Article' => 'Update',
-            ];
-        }
+describe('permission catalogue through the real transformers', function () {
+    beforeEach(function () {
+        $this->app->register(CataloguePanelProvider::class);
+        $this->app->forgetInstance(PanelRegistry::class);
 
-        public function getPages(): ?array
-        {
-            return [
-                'App\Filament\Pages\Settings' => [
-                    'pageFqcn' => 'App\Filament\Pages\Settings',
-                    'permissions' => ['View:Settings' => 'Settings'],
-                ],
-            ];
-        }
+        declareAppModel('App\Models\Blog\Article');
 
-        public function getWidgets(): ?array
-        {
-            return [
-                'App\Filament\Widgets\IncomeWidget' => [
-                    'widgetFqcn' => 'App\Filament\Widgets\IncomeWidget',
-                    'permissions' => ['View:IncomeWidget' => 'Income Widget'],
-                ],
-            ];
-        }
+        Filament::setCurrentPanel('catalogue');
+    });
 
-        public function getCustomPermissions(bool $localized = false): ?array
-        {
-            return ['Impersonate:User' => 'Impersonate User'];
-        }
-    };
-}
+    it('builds the catalogue from real panel entities', function () {
+        expect(FilamentShield::getEntitiesPermissions())
+            ->toContain('ViewAny:Article')
+            ->toContain('View:Reports')
+            ->toContain('View:RevenueChart');
+    });
 
-it('includes the permission keys of pages and widgets', function () {
-    expect(shieldWithEntities()->getEntitiesPermissions())
-        ->toBe([
-            'View:Article',
-            'Update:Article',
-            'View:Settings',
-            'View:IncomeWidget',
-            'Impersonate:User',
-        ]);
+    it('does not leak page or widget class names', function () {
+        expect(FilamentShield::getEntitiesPermissions())
+            ->not->toContain(Reports::class)
+            ->not->toContain(RevenueChart::class);
+    });
+
+    it('includes custom permissions from the config', function () {
+        config()->set('filament-shield.custom_permissions', ['Impersonate:User' => 'Impersonate User']);
+
+        expect(FilamentShield::getEntitiesPermissions())->toContain('Impersonate:User');
+    });
 });
 
-it('does not leak page and widget class names into the permission list', function () {
-    expect(shieldWithEntities()->getEntitiesPermissions())
-        ->not->toContain('App\Filament\Pages\Settings')
-        ->not->toContain('App\Filament\Widgets\IncomeWidget');
-});
-
-it('handles entities without permissions', function () {
-    $shield = new class extends FilamentShield
-    {
-        public function getAllResourcePermissionsWithLabels(): array
+describe('catalogue assembly from transformed entities', function () {
+    beforeEach(function () {
+        $this->shield = new class extends FilamentShieldManager
         {
-            return ['View:Article' => 'View'];
-        }
+            public function getAllResourcePermissionsWithLabels(): array
+            {
+                return [
+                    'View:Article' => 'View',
+                    'Update:Article' => 'Update',
+                ];
+            }
 
-        public function getPages(): ?array
+            public function getPages(): ?array
+            {
+                return [
+                    'App\Filament\Pages\Settings' => [
+                        'pageFqcn' => 'App\Filament\Pages\Settings',
+                        'permissions' => ['View:Settings' => 'Settings'],
+                    ],
+                ];
+            }
+
+            public function getWidgets(): ?array
+            {
+                return [
+                    'App\Filament\Widgets\IncomeWidget' => [
+                        'widgetFqcn' => 'App\Filament\Widgets\IncomeWidget',
+                        'permissions' => ['View:IncomeWidget' => 'Income Widget'],
+                    ],
+                ];
+            }
+
+            public function getCustomPermissions(bool $localized = false): ?array
+            {
+                return ['Impersonate:User' => 'Impersonate User'];
+            }
+        };
+    });
+
+    it('assembles the keys of every entity type in merge order', function () {
+        expect($this->shield->getEntitiesPermissions())
+            ->toBe([
+                'View:Article',
+                'Update:Article',
+                'View:Settings',
+                'View:IncomeWidget',
+                'Impersonate:User',
+            ]);
+    });
+
+    it('keeps transformed entity class names out of the catalogue', function () {
+        expect($this->shield->getEntitiesPermissions())
+            ->not->toContain('App\Filament\Pages\Settings')
+            ->not->toContain('App\Filament\Widgets\IncomeWidget');
+    });
+
+    it('skips entities without transformed permissions', function () {
+        $shield = new class extends FilamentShieldManager
         {
-            return ['App\Filament\Pages\Settings' => ['pageFqcn' => 'App\Filament\Pages\Settings']];
-        }
+            public function getAllResourcePermissionsWithLabels(): array
+            {
+                return ['View:Article' => 'View'];
+            }
 
-        public function getWidgets(): ?array
-        {
-            return null;
-        }
+            public function getPages(): ?array
+            {
+                return ['App\Filament\Pages\Settings' => ['pageFqcn' => 'App\Filament\Pages\Settings']];
+            }
 
-        public function getCustomPermissions(bool $localized = false): ?array
-        {
-            return null;
-        }
-    };
+            public function getWidgets(): ?array
+            {
+                return null;
+            }
 
-    expect($shield->getEntitiesPermissions())->toBe(['View:Article']);
+            public function getCustomPermissions(bool $localized = false): ?array
+            {
+                return null;
+            }
+        };
+
+        expect($shield->getEntitiesPermissions())->toBe(['View:Article']);
+    });
 });

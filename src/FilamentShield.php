@@ -134,8 +134,6 @@ class FilamentShield
     }
 
     /**
-     * Permission keys of transformed page/widget entities.
-     *
      * @param  array<string, array{permissions?: array<string, string>}>|null  $entities
      * @return array<int, string>
      */
