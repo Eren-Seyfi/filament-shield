@@ -2,6 +2,18 @@
 
 All notable changes to `filament-shield` will be documented in this file.
 
+## 4.3.1 - 2026-07-25
+
+### What's Changed
+
+* fix: read page and widget permission keys in getEntitiesPermissions() by @wit3 in https://github.com/bezhanSalleh/filament-shield/pull/747
+
+### New Contributors
+
+* @wit3 made their first contribution in https://github.com/bezhanSalleh/filament-shield/pull/747
+
+**Full Changelog**: https://github.com/bezhanSalleh/filament-shield/compare/4.3.0...4.3.1
+
 ## 4.3.0 - 2026-07-23
 
 ### What's Changed
